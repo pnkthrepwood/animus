@@ -58,7 +58,7 @@ namespace Editor
 		strcpy_s(Editor::buff_animation_name, Editor::all_animation_names[Editor::anim_selected].c_str());
 	}
 
-	void InitNewAnim()
+	void CreateNewAnimationConfig()
 	{
 		data->frames = 1;
 		frame_current = 0;
@@ -130,11 +130,8 @@ namespace Editor
 		data->timer[frame_current] = tmp_timer;
 	}
 	
-	void Load()
+	void LoadAnimationConfigFromFile(std::ifstream& file)
 	{
-		std::ifstream file;
-		file.open("project.anm", ios::in);
-
 		file >> Editor::anims_total;
 
 		for (int i = 0; i < Editor::anims_total; ++i)
@@ -170,7 +167,6 @@ namespace Editor
 
 	void Save()
 	{
-
 		std::ofstream file;
 		file.open("project.anm", ios::out | ios::trunc);
 
@@ -200,7 +196,6 @@ namespace Editor
 
 	void Export()
 	{
-
 		std::ofstream file;
 		file.open("anim_data.h", ios::out | ios::trunc);
 
@@ -275,9 +270,6 @@ namespace Editor
 
 		file.close();
 	}
-
-
-	
 };
 
 sf::RenderTexture rtex_preview;
@@ -285,7 +277,7 @@ sf::RenderTexture rtex_preview;
 const int SCR_WIDTH = 1200;
 const int SCR_HEIGHT = 800;
 
-void LoadGame(sf::RenderWindow& window)
+void InitialSetup(sf::RenderWindow& window)
 {
 	Editor::texture.loadFromFile("data/spritesheet.png");
 
@@ -295,7 +287,11 @@ void LoadGame(sf::RenderWindow& window)
 	window.setFramerateLimit(60);
 	ImGui::SFML::Init(window);
 
-	input.RemapInput();
+	input.Remap();
+
+	rtex_preview.create(200, 200);
+
+	Editor::CreateNewAnimationConfig();
 }
 
 void Image( const sf::FloatRect& textureRect, const sf::Color& tintColor = sf::Color::White, const sf::Color& borderColor = sf::Color::Transparent )
@@ -306,155 +302,158 @@ void Image( const sf::FloatRect& textureRect, const sf::Color& tintColor = sf::C
 	ImGui::Image(rtex_preview.getTexture().getNativeHandle(), rtex_preview.getTexture().getSize(), uv0, uv1, tintColor, borderColor);
 }
 
-void EditorSection_Editor()
+namespace UI_EditorSection
 {
-	sf::Sprite& spr = Editor::spr_selected;
-
-	std::string editor_title = "editor.";
-	if (input.IsMousePressed(1))
+	void EditorSection_Editor()
 	{
-		editor_title += " (" + std::to_string(sf::Mouse::getPosition().x) + ", " +
-							   std::to_string(sf::Mouse::getPosition().y) + ")";
-	}
+		sf::Sprite& spr = Editor::spr_selected;
 
-	ImGui::Text(editor_title.c_str());
-	ImGui::NewLine();
-
-	ImGui::Columns(2, "columns", false);
-	
-	spr.setScale(4, 4);
-	ImGui::Image(spr, sf::Color::White, sf::Color::Red);
-	ImGui::NextColumn();
-	ImGui::PushItemWidth(100);
-	ImGui::InputInt("X", &Editor::rect->left, 1, 1, 0);
-
-	ImGui::SameLine();
-	ImGui::PushItemWidth(100);
-	ImGui::InputInt("W", &Editor::rect->width, 1, 1, 0);
-
-	ImGui::PushItemWidth(100);
-	ImGui::InputInt("Y", &Editor::rect->top, 1, 1, 0);
-	ImGui::SameLine();
-	ImGui::PushItemWidth(100);
-	ImGui::InputInt("H", &Editor::rect->height, 1, 1, 0);
-
-	ImGui::InputInt("duration (ms)", Editor::time, 1, 1, 0);
-	ImGui::NextColumn();
-
-	ImGui::Columns(1, "columns", false);
-	
-}
-
-void EditorSection_FrameSelector()
-{
-	sf::Sprite& spr = Editor::spr_selected;
-
-	ImGui::Text("selector.");
-
-	{
-		int frames = Editor::data->frames;
-		if (frames > 1)
+		std::string editor_title = "editor.";
+		if (input.IsMousePressed(1))
 		{
-			for (int i = 0; i < frames; ++i)
+			editor_title += " (" + std::to_string(sf::Mouse::getPosition().x) + ", " +
+				std::to_string(sf::Mouse::getPosition().y) + ")";
+		}
+
+		ImGui::Text(editor_title.c_str());
+		ImGui::NewLine();
+
+		ImGui::Columns(2, "columns", false);
+
+		spr.setScale(4, 4);
+		ImGui::Image(spr, sf::Color::White, sf::Color::Red);
+		ImGui::NextColumn();
+		ImGui::PushItemWidth(100);
+		ImGui::InputInt("X", &Editor::rect->left, 1, 1, 0);
+
+		ImGui::SameLine();
+		ImGui::PushItemWidth(100);
+		ImGui::InputInt("W", &Editor::rect->width, 1, 1, 0);
+
+		ImGui::PushItemWidth(100);
+		ImGui::InputInt("Y", &Editor::rect->top, 1, 1, 0);
+		ImGui::SameLine();
+		ImGui::PushItemWidth(100);
+		ImGui::InputInt("H", &Editor::rect->height, 1, 1, 0);
+
+		ImGui::InputInt("duration (ms)", Editor::time, 1, 1, 0);
+		ImGui::NextColumn();
+
+		ImGui::Columns(1, "columns", false);
+
+	}
+	void EditorSection_FrameSelector()
+	{
+		sf::Sprite& spr = Editor::spr_selected;
+
+		ImGui::Text("selector.");
+
+		{
+			int frames = Editor::data->frames;
+			if (frames > 1)
 			{
-				if (ImGui::RadioButton(std::to_string(i + 1).c_str(), &Editor::frame_current, i))
+				for (int i = 0; i < frames; ++i)
 				{
+					if (ImGui::RadioButton(std::to_string(i + 1).c_str(), &Editor::frame_current, i))
+					{
+						Editor::RefreshFrameSelected();
+					}
+					ImGui::SameLine();
+				}
+			}
+
+			if (ImGui::Button("ADD"))
+			{
+				Editor::AddNewFrame();
+			}
+
+			if (frames > 1)
+			{
+				ImGui::SameLine();
+
+				if (ImGui::Button("DELETE"))
+				{
+					Editor::DeleteLastFrame();
+				}
+
+
+				ImGui::SameLine();
+				if (ImGui::Button("<<"))
+				{
+					if (Editor::frame_current > 0)
+					{
+						Editor::ShiftCurrentFrameLeft();
+					}
+				}
+
+				ImGui::SameLine();
+				if (ImGui::Button(">>"))
+				{
+					if (Editor::frame_current < (Editor::anims_total - 1))
+					{
+						Editor::ShiftCurrentFrameRight();
+					}
+				}
+
+			}
+		}
+
+		//Show all frames
+		for (int i = 0; i < Editor::data->frames; ++i)
+		{
+			if (i > 0) ImGui::SameLine();
+			spr.setTextureRect(Editor::data->rect[i]);
+			spr.setScale(2, 2);
+			ImGui::Image(spr);
+
+		}
+	}
+	void EditorSection_AnimationSelector()
+	{
+
+		ImGui::Columns(1, "columns", false);
+		static int anim_sel = 0;
+
+		if (ImGui::InputText("name", &Editor::buff_animation_name[0], 128))
+		{
+			Editor::all_animation_names[Editor::anim_selected] = std::string(Editor::buff_animation_name);
+		}
+
+		int anims = Editor::anims_total;
+		if (anims > 1)
+		{
+			for (int i = 0; i < anims; ++i)
+			{
+				if (ImGui::RadioButton(("a" + std::to_string(i + 1)).c_str(), &anim_sel, i))
+				{
+					Editor::anim = &Editor::all_animations[i];
+					Editor::data = &Editor::all_animation_datas[i];
+					Editor::frame_current = 0;
 					Editor::RefreshFrameSelected();
+					Editor::anim_selected = i;
+
+					Editor::RefreshAnimationNameInputText();
 				}
-				ImGui::SameLine();
-			}
-		}
-
-		if (ImGui::Button("ADD"))
-		{
-			Editor::AddNewFrame();
-		}
-
-		if (frames > 1)
-		{
-			ImGui::SameLine();
-
-			if (ImGui::Button("DELETE"))
-			{
-				Editor::DeleteLastFrame();
-			}
-
-			
-			ImGui::SameLine();
-			if (ImGui::Button("<<"))
-			{
-				if (Editor::frame_current > 0)
+				if (i == 0 || i % 7 != 0)
 				{
-					Editor::ShiftCurrentFrameLeft();
+					ImGui::SameLine();
 				}
 			}
-			
-			ImGui::SameLine();
-			if (ImGui::Button(">>"))
-			{
-				if (Editor::frame_current < (Editor::anims_total - 1))
-				{
-					Editor::ShiftCurrentFrameRight();
-				}
-			}
-			
 		}
-	}
 
-	//Show all frames
-	for (int i = 0; i < Editor::data->frames; ++i)
-	{
-		if (i > 0) ImGui::SameLine();
-		spr.setTextureRect(Editor::data->rect[i]);
-		spr.setScale(2, 2);
-		ImGui::Image(spr);
-		
-	}
-}
-
-void EditorSection_AnimationSelector()
-{
-
-	ImGui::Columns(1, "columns", false);
-	static int anim_sel = 0;
-	
-	if (ImGui::InputText("name", &Editor::buff_animation_name[0], 128))
-	{
-		Editor::all_animation_names[Editor::anim_selected] = std::string(Editor::buff_animation_name);
-	}
-
-	int anims = Editor::anims_total;
-	if (anims > 1)
-	{
-		for (int i = 0; i < anims; ++i)
+		if (ImGui::Button("ADD ANIM"))
 		{
-			if (ImGui::RadioButton(("a"+std::to_string(i + 1)).c_str(), &anim_sel, i))
-			{
-				Editor::anim = &Editor::all_animations[i];
-				Editor::data = &Editor::all_animation_datas[i];
-				Editor::frame_current = 0;
-				Editor::RefreshFrameSelected();
-				Editor::anim_selected = i;
-
-				Editor::RefreshAnimationNameInputText();
-			}
-			if (i == 0 || i % 7 != 0)
-			{
-				ImGui::SameLine();
-			}
+			Editor::AddNewAnim();
 		}
-	}
 
-	if (ImGui::Button("ADD ANIM"))
-	{
-		Editor::AddNewAnim();
+		ImGui::Columns(2, "columns", false);
 	}
-
-	ImGui::Columns(2, "columns", false);
 }
 
 void EditorStuff()
 {
+
+#if _DEBUG
 	static bool show_demo = false;
 	if (input.IsJustPressed(GameKeys::F1))
 	{
@@ -465,13 +464,35 @@ void EditorStuff()
 	{
 		ImGui::ShowDemoWindow();
 	}
+#endif
 
 	ImGui::Begin("animus", NULL, /*ImGuiWindowFlags_::ImGuiWindowFlags_NoMove  |*/ ImGuiWindowFlags_::ImGuiWindowFlags_NoDecoration);
 	
-	EditorSection_Editor();
+	ImGui::Text("file.");
+	ImGui::NewLine();
+
+	if (ImGui::Button("SAVE CONFIG"))
+	{
+		Editor::Save();
+	}
+
+	ImGui::SameLine();
+
+	if (ImGui::Button("EXPORT HEADER"))
+	{
+		Editor::Export();
+	}
+
 	ImGui::Separator();
-	EditorSection_FrameSelector();
+
+	UI_EditorSection::EditorSection_Editor();
+
 	ImGui::Separator();
+
+	UI_EditorSection::EditorSection_FrameSelector();
+
+	ImGui::Separator();
+
 	ImGui::Text("preview.");
 	ImGui::NewLine();
 
@@ -487,29 +508,7 @@ void EditorStuff()
 	ImGui::Text("animations.");
 	ImGui::NewLine();
 
-	EditorSection_AnimationSelector();
-
-	ImGui::Separator();
-	ImGui::Text("cosas.");
-	ImGui::NewLine();
-
-	if (ImGui::Button("LOAD"))
-	{
-		Editor::Load();
-	}
-
-	ImGui::SameLine();
-
-	if (ImGui::Button("SAVE"))
-	{
-		Editor::Save();
-	}
-
-	if (ImGui::Button("EXPORT"))
-	{
-		Editor::Export();
-
-	}
+	UI_EditorSection::EditorSection_AnimationSelector();
 
 	ImGui::End();
 }
@@ -659,59 +658,51 @@ void UpdateInput(sf::RenderWindow& window, int dt)
 	}
 }
 
+
+void ProcessWindowEvents(sf::RenderWindow& window)
+{
+	sf::Event event;
+	while (window.pollEvent(event))
+	{
+		ImGui::SFML::ProcessEvent(event);
+		if (event.type == sf::Event::Closed)
+		{
+			window.close();
+		}
+	}
+}
+
 int main()
 {
 	sf::RenderWindow window(sf::VideoMode(SCR_WIDTH, SCR_HEIGHT), "animus");
-	LoadGame(window);
+	InitialSetup(window);
 
-	sf::Clock clk_frame;
-	sf::Clock clk_general;
-
-	sf::Clock clk_fps;
-	int fps_counter = 0;
-
-	rtex_preview.create(200, 200);
+	sf::Clock clock_running_total;
+	sf::Clock clock_one_frame;
 
 	std::ifstream file;
 	file.open("project.anm", ios::in);
 	if (file.good())
 	{
-		file.close();
-		Editor::Load();
+		Editor::LoadAnimationConfigFromFile(file);
 	}
-	else
-	{
-		file.close();
-		Editor::InitNewAnim();
-	}
+	file.close();
 
 	while (window.isOpen())
 	{
 		Editor::texture.loadFromFile("data/spritesheet.png");
 
-		int time_general = clk_general.getElapsedTime().asMilliseconds();
-		sf::Time t_frame = clk_frame.getElapsedTime();
-		int dt = t_frame.asMilliseconds();
-		clk_frame.restart();
+		const int time_general = clock_running_total.getElapsedTime().asMilliseconds();
+		const sf::Time time_current_frame = clock_one_frame.restart();
+		const int deltatime_frame = time_current_frame.asMilliseconds();
 
-		sf::Event event;
-		while (window.pollEvent(event))
-		{
-			ImGui::SFML::ProcessEvent(event);
+		ProcessWindowEvents(window);
 
-			if (event.type == sf::Event::Closed) 
-			{
-				window.close();
-			}
-		}
+		input.MakeSnapshot();
+		UpdateInput(window, deltatime_frame);
+		ImGui::SFML::Update(window, time_current_frame);
 
-		input.UpdateInput();
-
-		UpdateInput(window, dt);
-
-		ImGui::SFML::Update(window, t_frame);
-
-		Editor::UpdatePreview(t_frame);
+		Editor::UpdatePreview(time_current_frame);
 
 		window.clear();
 

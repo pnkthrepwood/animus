@@ -51,7 +51,7 @@ struct InputState
 		return !mousePressed[m] && wasMousePressed[m];
 	}
 
-	void RemapInput()
+	void Remap()
 	{
 		input_map[GameKeys::UP] = sf::Keyboard::Key::Up;
 		input_map[GameKeys::DOWN] = sf::Keyboard::Key::Down;
@@ -83,7 +83,7 @@ struct InputState
 		input_map[GameKeys::F12] = sf::Keyboard::Key::F12;
 	}
 
-	void UpdateInput()
+	void MakeSnapshot()
 	{
 		for (const auto& kv : input_map)
 		{
